@@ -338,7 +338,7 @@ class TextToSpeech:
 
         self.loading = False
 
-    def load_autoregressive_model(self, autoregressive_model_path):
+    def load_autoregressive_model(self, autoregressive_model_path, is_xtts=False):
         if hasattr(self,"autoregressive_model_path") and os.path.samefile(self.autoregressive_model_path, autoregressive_model_path):
             return
 
@@ -356,10 +356,38 @@ class TextToSpeech:
         if hasattr(self, 'autoregressive'):
             del self.autoregressive
 
-        self.autoregressive = UnifiedVoice(max_mel_tokens=604, max_text_tokens=402, max_conditioning_inputs=2, layers=30,
-                                          model_dim=1024,
-                                          heads=16, number_text_tokens=255, start_text_token=255, checkpointing=False,
-                                          train_solo_embeddings=False).cpu().eval()
+        # XTTS requires a different "dimensionality" for its autoregressive model
+        if new_hash == "e4ce21eae0043f7691d6a6c8540b74b8" or is_xtts:
+            dimensionality = {
+                "max_mel_tokens": 605,
+                "max_text_tokens": 402,
+                "max_prompt_tokens": 70,
+                "max_conditioning_inputs": 1,
+                "layers": 30,
+                "model_dim": 1024,
+                "heads": 16,
+                "number_text_tokens": 5023, # -1
+                "start_text_token": 261,
+                "stop_text_token": 0,
+                "number_mel_codes": 8194,
+                "start_mel_token": 8192,
+                "stop_mel_token": 8193,
+            }
+        else:
+            dimensionality = {
+                "max_mel_tokens": 604,
+                "max_text_tokens": 402,
+                "max_conditioning_inputs": 2,
+                "layers": 30,
+                "model_dim": 1024,
+                "heads": 16,
+                "number_text_tokens": 255,
+                "start_text_token": 255,
+                "checkpointing": False,
+                "train_solo_embeddings": False
+            }
+
+        self.autoregressive = UnifiedVoice(**dimensionality).cpu().eval()
         self.autoregressive.load_state_dict(torch.load(self.autoregressive_model_path))
         self.autoregressive.post_init_gpt2_config(use_deepspeed=self.use_deepspeed, kv_cache=self.use_kv_cache)
         if self.preloaded_tensors:
@@ -380,9 +408,21 @@ class TextToSpeech:
         if hasattr(self, 'diffusion'):
             del self.diffusion
 
-        self.diffusion = DiffusionTts(model_channels=1024, num_layers=10, in_channels=100, out_channels=200,
-                                          in_latent_channels=1024, in_tokens=8193, dropout=0, use_fp16=False, num_heads=16,
-                                          layer_drop=0, unconditioned_percentage=0).cpu().eval()
+        # XTTS does not require a different "dimensionality" for its diffusion model
+        dimensionality = {
+            "model_channels": 1024,
+            "num_layers": 10,
+            "in_channels": 100,
+            "out_channels": 200,
+            "in_latent_channels": 1024,
+            "in_tokens": 8193,
+            "dropout": 0,
+            "use_fp16": False,
+            "num_heads": 16,
+            "layer_drop": 0,
+            "unconditioned_percentage": 0
+        }
+        self.diffusion = DiffusionTts(**dimensionality)
         self.diffusion.load_state_dict(torch.load(get_model_path('diffusion_decoder.pth', self.models_dir)))
         if self.preloaded_tensors:
             self.diffusion = migrate_to_device( self.diffusion, self.device )

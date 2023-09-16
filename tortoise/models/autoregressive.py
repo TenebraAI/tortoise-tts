@@ -283,9 +283,9 @@ class MelEncoder(nn.Module):
 
 
 class UnifiedVoice(nn.Module):
-    def __init__(self, layers=8, model_dim=512, heads=8, max_text_tokens=120, max_mel_tokens=250, max_conditioning_inputs=1,
+    def __init__(self, layers=8, model_dim=512, heads=8, max_text_tokens=120, max_prompt_tokens=2, max_mel_tokens=250, max_conditioning_inputs=1,
                  mel_length_compression=1024, number_text_tokens=256,
-                 start_text_token=None, number_mel_codes=8194, start_mel_token=8192,
+                 start_text_token=None, stop_text_token=0, number_mel_codes=8194, start_mel_token=8192,
                  stop_mel_token=8193, train_solo_embeddings=False, use_mel_codes_as_input=True,
                  checkpointing=True, types=1):
         """
@@ -295,6 +295,7 @@ class UnifiedVoice(nn.Module):
             heads: Number of transformer heads. Must be divisible by model_dim. Recommend model_dim//64
             max_text_tokens: Maximum number of text tokens that will be encountered by model.
             max_mel_tokens: Maximum number of MEL tokens that will be encountered by model.
+            max_prompt_tokens: compat set to 2, 70 for XTTS
             max_conditioning_inputs: Maximum number of conditioning inputs provided to the model. If (1), conditioning input can be of format (b,80,s), otherwise (b,n,80,s).
             mel_length_compression: The factor between <number_input_samples> and <mel_tokens>. Used to compute MEL code padding given wav input length.
             number_text_tokens:
@@ -311,7 +312,7 @@ class UnifiedVoice(nn.Module):
 
         self.number_text_tokens = number_text_tokens
         self.start_text_token = number_text_tokens * types if start_text_token is None else start_text_token
-        self.stop_text_token = 0
+        self.stop_text_token = stop_text_token
         self.number_mel_codes = number_mel_codes
         self.start_mel_token = start_mel_token
         self.stop_mel_token = stop_mel_token
@@ -319,6 +320,7 @@ class UnifiedVoice(nn.Module):
         self.heads = heads
         self.max_mel_tokens = max_mel_tokens
         self.max_text_tokens = max_text_tokens
+        self.max_prompt_tokens = max_prompt_tokens
         self.model_dim = model_dim
         self.max_conditioning_inputs = max_conditioning_inputs
         self.mel_length_compression = mel_length_compression
@@ -353,7 +355,7 @@ class UnifiedVoice(nn.Module):
             module.weight.data.normal_(mean=0.0, std=.02)
 
     def post_init_gpt2_config(self, use_deepspeed=False, kv_cache=False):
-        seq_length = self.max_mel_tokens + self.max_text_tokens + 2
+        seq_length = self.max_mel_tokens + self.max_text_tokens + self.max_prompt_tokens
         gpt_config = GPT2Config(vocab_size=self.max_mel_tokens,
                                 n_positions=seq_length,
                                 n_ctx=seq_length,
@@ -373,7 +375,7 @@ class UnifiedVoice(nn.Module):
             self.inference_model = self.ds_engine.module.eval()
         else:
             self.inference_model = self.inference_model.eval()
-			
+            
         self.gpt.wte = self.mel_embedding
 
     def build_aligned_inputs_and_targets(self, input, start_token, stop_token):
@@ -494,7 +496,7 @@ class UnifiedVoice(nn.Module):
 
     def inference_speech(self, speech_conditioning_latent, text_inputs, input_tokens=None, num_return_sequences=1,
                          max_generate_length=None, typical_sampling=False, typical_mass=.9, **hf_generate_kwargs):
-        seq_length = self.max_mel_tokens + self.max_text_tokens + 2
+        seq_length = self.max_mel_tokens + self.max_text_tokens + self.max_prompt_tokens
         if not hasattr(self, 'inference_model'):
             self.post_init_gpt2_config(kv_cache=self.kv_cache)
             
