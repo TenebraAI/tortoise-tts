@@ -815,7 +815,10 @@ class TextToSpeech:
 
             clip_results = torch.cat(clip_results, dim=0)
             samples = torch.cat(samples, dim=0)
-            best_results = samples[torch.topk(clip_results, k=k).indices]
+            if k < num_autoregressive_samples:
+                best_results = samples[torch.topk(clip_results, k=k).indices]
+            else:
+                best_results = samples
             
             if not self.preloaded_tensors:
                 self.clvp = migrate_to_device( self.clvp, 'cpu' )
