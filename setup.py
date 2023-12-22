@@ -37,6 +37,8 @@ setuptools.setup(
         'tqdm==4.66.1',
         'transformers==4.19.0',
         'x-transformers==1.0.4',
+        'psutil==5.9.7',
+        'rotary_embedding_torch==0.4.0',
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
