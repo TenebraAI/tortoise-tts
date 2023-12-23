@@ -364,6 +364,7 @@ class UnifiedVoice(nn.Module):
                                 n_head=self.heads,
                                 gradient_checkpointing=False,
                                 use_cache=True)
+        print(gpt_config.to_json_string())
         self.inference_model = GPT2InferenceModel(gpt_config, self.gpt, self.mel_pos_embedding, self.mel_embedding, self.final_norm, self.mel_head, kv_cache=kv_cache)
         #print(f'use_deepspeed autoregressive_debug {use_deepspeed}')
         if use_deepspeed and torch.cuda.is_available():
