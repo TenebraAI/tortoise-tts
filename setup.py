@@ -35,7 +35,7 @@ setuptools.setup(
         'torchaudio',
         'torchlibrosa==0.1.0',
         'tqdm==4.66.1',
-        'transformers==4.34.0',
+        'transformers==4.25.0',
         'x-transformers==1.0.4',
         'psutil==5.9.7',
         'rotary_embedding_torch==0.4.0',
