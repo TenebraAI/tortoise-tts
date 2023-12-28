@@ -37,6 +37,8 @@ class ResBlock(nn.Module):
 
 class GPT2InferenceModel(GPT2PreTrainedModel):
     def __init__(self, config, gpt, text_pos_emb, embeddings, norm, linear, kv_cache):
+        _keys_to_ignore_on_load_unexpected = [r"h\.\d+\.attn\.bias", r"h\.\d+\.attn\.masked_bias"]
+        _keys_to_ignore_on_load_missing = [r"attn.masked_bias", r"h\.\d+\.attn\.masked_bias", r"h\.\d+\.attn\.bias"]
         super().__init__(config)
         self.transformer = gpt
         self.text_pos_embedding = text_pos_emb
@@ -366,7 +368,7 @@ class UnifiedVoice(nn.Module):
                                 use_cache=True)
         print(gpt_config.to_json_string())
         self.inference_model = GPT2InferenceModel(gpt_config, self.gpt, self.mel_pos_embedding, self.mel_embedding, self.final_norm, self.mel_head, kv_cache=kv_cache)
-        #print(f'use_deepspeed autoregressive_debug {use_deepspeed}')
+
         if use_deepspeed and torch.cuda.is_available():
             import deepspeed
             self.ds_engine = deepspeed.init_inference(model=self.inference_model,  
