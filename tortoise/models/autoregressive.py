@@ -6,12 +6,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from transformers.models.gpt2.configuration_gpt2 import (
-        GPT2Config,
+from transformers import (
+        LogitsProcessorList,
         )
 
-from transformers.generation_logits_process import (
-        LogitsProcessorList,
+from transformers.models.gpt2.configuration_gpt2 import (
+        GPT2Config,
         )
 
 from transformers.models.gpt2.modeling_gpt2 import (
