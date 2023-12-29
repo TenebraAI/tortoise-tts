@@ -85,17 +85,19 @@ class AttentionBlock(nn.Module):
     https://github.com/hojonathanho/diffusion/blob/1e0dceb3b3495bbe19116a5e1b3596cd0706c543/diffusion_tf/models/unet.py#L66.
     """
 
-    def __init__(
-        self,
-        channels,
-        num_heads=1,
-        num_head_channels=-1,
-        do_checkpoint=True,
-        relative_pos_embeddings=False,
-    ):
+    def __init__(self,
+                 channels,
+                 num_heads=1,
+                 num_head_channels=-1,
+                 do_checkpoint=True,
+                 relative_pos_embeddings=False,
+                 ):
+
         super().__init__()
+
         self.channels = channels
         self.do_checkpoint = do_checkpoint
+
         if num_head_channels == -1:
             self.num_heads = num_heads
         else:
@@ -103,6 +105,7 @@ class AttentionBlock(nn.Module):
                 channels % num_head_channels == 0
             ), f"q,k,v channels {channels} is not divisible by num_head_channels {num_head_channels}"
             self.num_heads = channels // num_head_channels
+
         self.norm = normalization(channels)
         self.qkv = nn.Conv1d(channels, channels * 3, 1)
         # split heads before split qkv

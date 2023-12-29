@@ -254,13 +254,20 @@ class TextToSpeech:
     Main entry point into Tortoise.
     """
 
-    def __init__(self, autoregressive_batch_size=None, models_dir=MODELS_DIR, enable_redaction=True, device=None,
-        minor_optimizations=True,
-        unsqueeze_sample_batches=False,
-        input_sample_rate=22050, output_sample_rate=24000,
-        autoregressive_model_path=None, diffusion_model_path=None, vocoder_model=None, tokenizer_json=None,
-#    ):
-        use_deepspeed=False):  # Add use_deepspeed parameter
+    def __init__(self, 
+                 autoregressive_batch_size=None,
+                 models_dir=MODELS_DIR, enable_redaction=True,
+                 device=None,
+                 minor_optimizations=True,
+                 unsqueeze_sample_batches=False,
+                 input_sample_rate=22050,
+                 output_sample_rate=24000,
+                 autoregressive_model_path=None,
+                 diffusion_model_path=None,
+                 vocoder_model=None,
+                 tokenizer_json=None,
+                 use_deepspeed=False
+                 ):
         """
         Constructor
         :param autoregressive_batch_size: Specifies how many samples to generate per batch. Lower this if you are seeing
@@ -276,16 +283,16 @@ class TextToSpeech:
         if device is None:
             device = get_device(verbose=True)
 
-        self.version = [2,4,4] # to-do, autograb this from setup.py, or have setup.py autograb this
         self.input_sample_rate = input_sample_rate
         self.output_sample_rate = output_sample_rate
         self.minor_optimizations = minor_optimizations
         self.unsqueeze_sample_batches = unsqueeze_sample_batches
-        self.use_deepspeed = use_deepspeed  # Store use_deepspeed as an instance variable
-        print(f'use_deepspeed api_debug {use_deepspeed}')
+        self.use_deepspeed = use_deepspeed
+
         # for clarity, it's simpler to split these up and just predicate them on requesting VRAM-consuming optimizations
         self.preloaded_tensors = minor_optimizations
         self.use_kv_cache = minor_optimizations
+
         if get_device_name() == "dml": # does not work with DirectML
             print("KV caching requested but not supported with the DirectML backend, disabling...")
             self.use_kv_cache = False

@@ -1,11 +1,30 @@
 import functools
 
+import math
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from transformers import GPT2Config, GPT2PreTrainedModel, LogitsProcessorList
+
+from transformers.models.gpt2.configuration_gpt2 import (
+        GPT2Config,
+        )
+
+from transformers.generation_logits_process import (
+        LogitsProcessorList,
+        )
+
+from transformers.models.gpt2.modeling_gpt2 import (
+        load_tf_weights_in_gpt2,
+        )
+
+from transformers.modeling_utils import (
+        PreTrainedModel,
+        )
+
 from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 from transformers.utils.model_parallel_utils import get_device_map, assert_device_map
+
 from tortoise.models.arch_util import AttentionBlock
 from tortoise.utils.typical_sampling import TypicalLogitsWarper
 
@@ -15,7 +34,6 @@ import tortoise.utils.torch_intermediary as ml
 
 def null_position_embeddings(range, dim):
     return torch.zeros((range.shape[0], range.shape[1], dim), device=range.device)
-
 
 class ResBlock(nn.Module):
     """
@@ -35,7 +53,8 @@ class ResBlock(nn.Module):
         return F.relu(self.net(x) + x)
 
 
-class GPT2InferenceModel(GPT2PreTrainedModel):
+class GPT2InferenceModel(PreTrainedModel):
+
 
     _keys_to_ignore_on_load_unexpected = [
             r"h\.\d+\.attn\.bias",
@@ -43,7 +62,6 @@ class GPT2InferenceModel(GPT2PreTrainedModel):
             r"gpt\.h\.\d+\.attn\.bias",
             r"gpt\.h\.\d+\.attn\.masked_bias"
             ]
-
     _keys_to_ignore_on_load_missing = [
             r"attn.masked_bias",
             r"h\.\d+\.attn\.masked_bias",
@@ -51,6 +69,42 @@ class GPT2InferenceModel(GPT2PreTrainedModel):
             r"gpt\.h\.\d+\.attn\.masked_bias",
             r"gpt\.h\.\d+\.attn\.bias"
             ]
+
+    config_class = GPT2Config
+    load_tf_weights = load_tf_weights_in_gpt2
+    base_model_prefix = "transformer"
+    is_parallelizable = True
+    supports_gradient_checkpointing = True
+    _no_split_modules = ["GPT2Block"]
+    _skip_keys_device_placement = "past_key_values"
+
+    def _init_weights(self, module):
+        """Initialize the weights."""
+        if isinstance(module, (nn.Linear, Conv1D)):
+            # Slightly different from the TF version which uses truncated_normal for initialization
+            # cf https://github.com/pytorch/pytorch/pull/5617
+            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+            if module.bias is not None:
+                module.bias.data.zero_()
+        elif isinstance(module, nn.Embedding):
+            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+            if module.padding_idx is not None:
+                module.weight.data[module.padding_idx].zero_()
+        elif isinstance(module, nn.LayerNorm):
+            module.bias.data.zero_()
+            module.weight.data.fill_(1.0)
+
+        # Reinitialize selected weights subject to the OpenAI GPT-2 Paper Scheme:
+        #   > A modified initialization which accounts for the accumulation on the residual path with model depth. Scale
+        #   > the weights of residual layers at initialization by a factor of 1/√N where N is the # of residual layers.
+        #   >   -- GPT-2 :: https://openai.com/blog/better-language-models/
+        #
+        # Reference (Megatron-LM): https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/model/gpt_model.py
+        for name, p in module.named_parameters():
+            if name == "c_proj.weight":
+                # Special Scaled Initialization --> There are 2 Layer Norms per Transformer Block
+                p.data.normal_(mean=0.0, std=(self.config.initializer_range / math.sqrt(2 * self.config.n_layer)))
+
 
     def __init__(self, config, gpt, text_pos_emb, embeddings, norm, linear, kv_cache):
         super().__init__(config)
